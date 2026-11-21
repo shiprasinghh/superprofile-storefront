@@ -7,13 +7,13 @@ and a clean, phone-first public page you can share with a link.
 
 Built for the SuperProfile PM (AI-native, 0→1) take-home.
 
-**Live demo:** https://superprofile-storefront-git-main-shipra-singh.vercel.app
+**Live demo:** https://superprofile-storefront.vercel.app
 
 ![flow](docs/flow.png)
 
 ## What it does
 
-- **Input:** a short self-description and/or an `@handle`, plus a language
+- **Input:** a short self-description (typed, or spoken in English, Hindi or Hinglish via the mic) and/or an `@handle`, plus a language
   choice (English / Hinglish / Hindi). A self-description alone is a valid input —
   we do **not** scrape Instagram (see Decisions below).
 - **Generate:** one real LLM call returns structured JSON — `creatorName`,
