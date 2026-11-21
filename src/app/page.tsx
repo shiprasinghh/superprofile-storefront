@@ -4,6 +4,7 @@ import { useState } from "react";
 import StorefrontView from "@/components/StorefrontView";
 import CoachPanel from "@/components/CoachPanel";
 import PublishSheet from "@/components/PublishSheet";
+import VoiceInput from "@/components/VoiceInput";
 import { encodeStorefront } from "@/lib/share";
 import { TONES, type Product, type Storefront, type Tone } from "@/lib/types";
 
@@ -166,13 +167,20 @@ export default function Home() {
             <label className="mb-1.5 block text-sm font-semibold text-gray-800">
               What do you do?
             </label>
-            <textarea
-              className="w-full resize-none rounded-xl border border-gray-200 p-3 text-sm leading-relaxed outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
-              rows={3}
-              placeholder="e.g. I'm a yoga teacher in Jaipur. I help beginners build a daily practice…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <div className="rounded-xl border border-gray-200 transition focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-100">
+              <textarea
+                className="w-full resize-none rounded-t-xl bg-transparent p-3 pb-1 text-sm leading-relaxed outline-none"
+                rows={3}
+                placeholder="e.g. I'm a yoga teacher in Jaipur. I help beginners build a daily practice…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+              <div className="px-3 pb-2.5">
+                <VoiceInput
+                  onText={(t) => setDescription((d) => (d.trim() ? `${d.trim()} ${t}` : t))}
+                />
+              </div>
+            </div>
 
             <p className="mb-2 mt-3 text-[11px] font-medium uppercase tracking-wide text-gray-400">
               Or start from an example

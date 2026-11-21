@@ -69,6 +69,19 @@ const FULL_SHAPE = `Return JSON of exactly this shape:
 }`;
 
 async function callModel(user: string, maxTokens: number): Promise<string> {
+  return geminiRequest({
+    system_instruction: { parts: [{ text: SYSTEM }] },
+    contents: [{ role: "user", parts: [{ text: user }] }],
+    generationConfig: {
+      temperature: 0.8,
+      maxOutputTokens: maxTokens,
+      responseMimeType: "application/json",
+    },
+  });
+}
+
+/** One Gemini call with a 28s timeout. Returns the raw text of the reply. */
+async function geminiRequest(payload: object): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 28_000);
   try {
@@ -76,15 +89,7 @@ async function callModel(user: string, maxTokens: number): Promise<string> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM }] },
-        contents: [{ role: "user", parts: [{ text: user }] }],
-        generationConfig: {
-          temperature: 0.8,
-          maxOutputTokens: maxTokens,
-          responseMimeType: "application/json",
-        },
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -189,6 +194,45 @@ Reply with ONLY this JSON:
     }
   }
   throw new Error("Could not regenerate product");
+}
+
+const TRANSCRIBE_PROMPT = `This is a short voice note from an Indian creator describing what they do, who they help or what they teach. They may speak English, Hindi, or a Hindi-English mix (Hinglish).
+
+Transcribe what they said. Rules:
+- Keep their words and meaning. Do not add, summarise or translate.
+- Write it the way they would type it on their phone: English words in English, Hindi words in Roman script (for example "main yoga sikhati hoon"). Use Devanagari only if the whole note is in pure Hindi.
+- Drop filler sounds (umm, uh) and add normal punctuation.
+- If there is no clear speech, return an empty string.
+Reply with ONLY this JSON: { "text": string }`;
+
+/** Turn a creator's voice note (English, Hindi or Hinglish) into text. */
+export async function transcribeAudio(base64Audio: string, mimeType: string): Promise<string> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await geminiRequest({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inline_data: { mime_type: mimeType, data: base64Audio } },
+              { text: TRANSCRIBE_PROMPT },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 800,
+          responseMimeType: "application/json",
+        },
+      });
+      const obj = extractJson(text);
+      return (typeof obj?.text === "string" ? obj.text.trim() : "").slice(0, 1000);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Transcription failed");
 }
 
 function asString(v: unknown): string | null {
