@@ -7,7 +7,7 @@ and a clean, phone-first public page you can share with a link.
 
 Built for the SuperProfile PM (AI-native, 0→1) take-home.
 
-**Live demo:** _(add your Vercel URL here)_
+**Live demo:** https://superprofile-storefront-git-main-shipra-singh.vercel.app
 
 ![flow](docs/flow.png)
 
