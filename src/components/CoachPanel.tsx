@@ -43,6 +43,11 @@ export default function CoachPanel({ storefront }: { storefront: Storefront }) {
       tip: "Aim for 2–3 sentences about who you help and how.",
     },
     {
+      ok: (storefront.proof ?? []).some((x) => x.text.trim()) || !!storefront.testimonial?.quote.trim(),
+      label: "Shows why buyers can trust you",
+      tip: "No reviews yet? Add real facts: followers, years of experience, a qualification.",
+    },
+    {
       ok: p.length >= 2 && p.length <= 4,
       label: `${p.length} focused offerings`,
       tip: "Keep it to 2–4 so buyers aren't overwhelmed.",

@@ -3,6 +3,7 @@ import {
   StorefrontSchema,
   type GenerateInput,
   type Product,
+  type Proof,
   type Storefront,
   type Tone,
 } from "./types";
@@ -39,6 +40,8 @@ Rules:
 - Write for a buyer scrolling on a phone: short, specific, benefit first. No filler words.
 - tagline: max 8 words. A promise to the buyer, not a job title ("Get fit at home in 20 minutes", not "Fitness coach").
 - bio: 2 short sentences, max 40 words, first person: who you help and why trust you.
+- HONESTY (these creators are first-time sellers): never invent facts about the creator. No made-up years of experience, follower counts, student numbers, certifications, awards, reviews, ratings or testimonials. Use a number or credential only if the creator stated it. If they gave none, build trust with what they do and who they help instead.
+- proof: 0 to 4 short trust facts (max 6 words each) taken ONLY from what the creator stated, e.g. "18K followers on Instagram", "5 years teaching yoga", "Certified CA", "200+ students taught". kind is followers, experience, credential, clients or other. If they stated none, return an empty array.
 - Each product: a clear title (max 7 words), a description of 1-2 short sentences (max 28 words) leading with what the buyer gets, and exactly 3 "highlights": concrete what-you-get points, max 6 words each ("30 ten-minute workouts", "Lifetime access", "WhatsApp support").
 - priceRationale is one short line for the creator only, explaining the price ("Priced for first-time buyers; one coaching call usually costs more").
 - theme / imageTheme pick the photo shown. Choose from: ${THEMES.map((t) => `${t} (${THEME_GUIDE[t]})`).join("; ")}. "theme" suits the creator's niche; each product's "imageTheme" suits that product's picture (for a 1:1 call use "call", for an ebook or guide use "books" or the niche). Always use the English theme key, whatever the writing language.
@@ -62,6 +65,7 @@ const FULL_SHAPE = `Return JSON of exactly this shape:
   "bio": string,               // 2 short sentences, max 40 words, first person
   "accent": "violet"|"emerald"|"rose"|"amber"|"sky",
   "theme": string,             // one theme key for the cover photo
+  "proof": [ { "kind": "followers"|"experience"|"credential"|"clients"|"other", "text": string } ], // stated facts only, [] if none
   "assumptions": string,       // "" unless input was thin; then what you assumed
   "products": [                // 2 to 4 items
     {
@@ -138,6 +142,22 @@ function describeInput(input: GenerateInput): string {
   return parts.join("\n");
 }
 
+/** Numbers in a string, normalised so "18K", "18,000" and "18000" all match. */
+function numbersIn(text: string): string[] {
+  return (text.replace(/(\d),(\d)/g, "$1$2").match(/\d+/g) ?? []).map(
+    (n) => n.replace(/^0+(?=\d)/, "").replace(/0+$/, "") || "0",
+  );
+}
+
+/**
+ * Quality control: drop any trust fact containing a number the creator
+ * never typed. Stops the model from inventing "10K followers" or "8 years".
+ */
+function keepStatedProof(proof: Proof[] | undefined, input: GenerateInput): Proof[] {
+  const stated = new Set(numbersIn(`${input.description ?? ""} ${input.handle ?? ""}`));
+  return (proof ?? []).filter((p) => numbersIn(p.text).every((n) => stated.has(n))).slice(0, 4);
+}
+
 /** Generate a full storefront. Retries once, then throws for the caller to handle. */
 export async function generateStorefront(input: GenerateInput): Promise<Storefront> {
   const base = `${describeInput(input)}\n\n${toneLine(input.tone)}\n\n${FULL_SHAPE}`;
@@ -150,7 +170,14 @@ export async function generateStorefront(input: GenerateInput): Promise<Storefro
           : `${base}\n\nIMPORTANT: your previous reply could not be parsed. Reply with ONLY the raw JSON object, nothing else.`;
       const text = await callModel(user, 2600);
       const parsed = StorefrontSchema.safeParse(extractJson(text));
-      if (parsed.success) return parsed.data;
+      if (parsed.success) {
+        // The AI never writes testimonials; only the creator can add one.
+        return {
+          ...parsed.data,
+          proof: keepStatedProof(parsed.data.proof, input),
+          testimonial: undefined,
+        };
+      }
       lastErr = new Error("Schema validation failed");
     } catch (e) {
       lastErr = e;
@@ -164,7 +191,7 @@ export async function regenerateBio(current: Storefront, tone?: Tone): Promise<s
   const user = `Here is the creator's current storefront JSON:
 ${JSON.stringify({ creatorName: current.creatorName, niche: current.niche, tagline: current.tagline, products: current.products.map((p) => p.title) })}
 
-Write a fresh, different bio: 2 short first-person sentences, max 40 words, saying who you help and why to trust you. ${toneLine(tone)}
+Write a fresh, different bio: 2 short first-person sentences, max 40 words, saying who you help and why to trust you. Do not invent numbers, years of experience, certifications or reviews; use only facts already in the storefront. ${toneLine(tone)}
 Reply with ONLY this JSON: { "bio": string }`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

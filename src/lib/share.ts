@@ -17,12 +17,17 @@ function fromPathSafe(s: string): string {
 
 export function encodeStorefront(s: Storefront): string {
   // Drop empty highlight rows left over from editing, so the link validates.
+  const quote = s.testimonial?.quote.trim();
   const clean: Storefront = {
     ...s,
     products: s.products.map((p) => ({
       ...p,
       highlights: p.highlights?.map((h) => h.trim()).filter(Boolean),
     })),
+    proof: s.proof?.map((x) => ({ ...x, text: x.text.trim() })).filter((x) => x.text),
+    testimonial: quote
+      ? { quote, name: s.testimonial?.name?.trim() || undefined }
+      : undefined,
   };
   return toPathSafe(LZString.compressToEncodedURIComponent(JSON.stringify(clean)));
 }

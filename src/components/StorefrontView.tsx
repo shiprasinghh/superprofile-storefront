@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Accent, Product, Storefront } from "@/lib/types";
+import type { Accent, Product, Proof, ProofKind, Storefront } from "@/lib/types";
 import {
   coverPhoto,
   formatInr,
@@ -109,6 +109,136 @@ function Photo({
       {state === "loading" && <div className="absolute inset-0 animate-pulse bg-gray-200" />}
       {state === "err" && <div className="absolute inset-0">{fallback}</div>}
     </div>
+  );
+}
+
+const PROOF_META: Record<ProofKind, { icon: string; add: string; placeholder: string }> = {
+  followers: { icon: "👥", add: "Followers", placeholder: "18K on Instagram" },
+  experience: { icon: "🏅", add: "Experience", placeholder: "5 years teaching" },
+  credential: { icon: "🎓", add: "Qualification", placeholder: "Certified yoga coach" },
+  clients: { icon: "🙋", add: "People helped", placeholder: "200+ students taught" },
+  other: { icon: "✨", add: "Other", placeholder: "Featured in a magazine" },
+};
+
+/** Buyer view: trust badges + one real quote. Hidden entirely if empty. */
+function TrustView({ storefront, soft, text }: { storefront: Storefront; soft: string; text: string }) {
+  const proof = (storefront.proof ?? []).filter((p) => p.text.trim());
+  const t = storefront.testimonial;
+  if (!proof.length && !t?.quote.trim()) return null;
+  return (
+    <section className="mx-4 mt-5 space-y-3">
+      {proof.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {proof.map((p, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm"
+            >
+              <span aria-hidden>{PROOF_META[p.kind].icon}</span>
+              {p.text}
+            </span>
+          ))}
+        </div>
+      )}
+      {t?.quote.trim() && (
+        <figure className={`rounded-2xl p-4 ${soft}`}>
+          <div className={`text-4xl font-serif leading-none ${text}`} aria-hidden>
+            “
+          </div>
+          <blockquote className="-mt-3 text-[15px] italic leading-relaxed text-gray-700">{t.quote}</blockquote>
+          {t.name?.trim() && (
+            <figcaption className="mt-2 text-xs font-semibold text-gray-500">— {t.name}</figcaption>
+          )}
+        </figure>
+      )}
+    </section>
+  );
+}
+
+/** Creator view: edit trust facts and paste one real quote. */
+function TrustEditor({
+  storefront,
+  onChange,
+  field,
+}: {
+  storefront: Storefront;
+  onChange: (patch: Partial<Storefront>) => void;
+  field: string;
+}) {
+  const proof: Proof[] = storefront.proof ?? [];
+  const t = storefront.testimonial;
+  const setProof = (next: Proof[]) => onChange({ proof: next });
+
+  return (
+    <section className="mx-4 mt-5 rounded-2xl border border-dashed border-gray-300 p-3">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Why buyers can trust you
+        </span>
+        <span className="text-[10px] text-gray-400">Real facts only</span>
+      </div>
+
+      {proof.length === 0 && (
+        <p className="mt-1.5 text-xs text-gray-500">
+          New stores don&apos;t have reviews yet. Add real facts like your followers or experience.
+        </p>
+      )}
+
+      <div className="mt-2 space-y-1.5">
+        {proof.map((p, i) => (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <span aria-hidden>{PROOF_META[p.kind].icon}</span>
+            <input
+              className={`min-w-0 flex-1 px-1 font-medium text-gray-800 ${field}`}
+              value={p.text}
+              placeholder={PROOF_META[p.kind].placeholder}
+              onChange={(e) => setProof(proof.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
+              aria-label={PROOF_META[p.kind].add}
+            />
+            <button
+              onClick={() => setProof(proof.filter((_, j) => j !== i))}
+              aria-label="Remove"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-rose-50 hover:text-rose-600"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {proof.length < 4 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {(["followers", "experience", "credential", "clients"] as ProofKind[]).map((k) => (
+            <button
+              key={k}
+              onClick={() => setProof([...proof, { kind: k, text: "" }])}
+              className="rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            >
+              + {PROOF_META[k].add}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 border-t border-gray-100 pt-3">
+        <textarea
+          rows={2}
+          className={`w-full resize-none p-1.5 text-sm italic text-gray-700 [field-sizing:content] ${field}`}
+          placeholder="Paste a real message from a past student or client (optional)"
+          value={t?.quote ?? ""}
+          onChange={(e) => onChange({ testimonial: { quote: e.target.value, name: t?.name } })}
+          aria-label="Testimonial quote"
+        />
+        <input
+          className={`mt-1 w-full px-1.5 text-xs text-gray-600 ${field}`}
+          placeholder="Their first name (optional)"
+          value={t?.name ?? ""}
+          onChange={(e) => onChange({ testimonial: { quote: t?.quote ?? "", name: e.target.value } })}
+          aria-label="Testimonial name"
+        />
+        <p className="mt-1 text-[10px] text-gray-400">Leave empty to hide. Never add made-up reviews.</p>
+      </div>
+    </section>
   );
 }
 
@@ -247,6 +377,13 @@ export default function StorefrontView({
           <p className="text-center text-[15px] leading-relaxed text-gray-600">{s.bio}</p>
         )}
       </section>
+
+      {/* Why trust me: honest proof for first-time sellers (no fake reviews) */}
+      {editable ? (
+        <TrustEditor storefront={s} onChange={edit!.onChange} field={field} />
+      ) : (
+        <TrustView storefront={s} soft={a.soft} text={a.text} />
+      )}
 
       {/* Products */}
       <section className="mt-7 px-4">

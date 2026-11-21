@@ -70,7 +70,13 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error);
-      setStorefront(data.storefront as Storefront);
+      const fresh = data.storefront as Storefront;
+      // Trust facts and the testimonial are the creator's own words: keep them.
+      setStorefront({
+        ...fresh,
+        proof: storefront.proof?.length ? storefront.proof : fresh.proof,
+        testimonial: storefront.testimonial,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not regenerate.");
     } finally {
