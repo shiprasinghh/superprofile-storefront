@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { THEMES } from "./photos";
 
 // Accent colours a creator can pick for their page header.
 export const ACCENTS = ["violet", "emerald", "rose", "amber", "sky"] as const;
@@ -25,6 +26,10 @@ export const ProductSchema = z.object({
   priceInr: z.coerce.number().int().min(0).max(1_000_000),
   priceRationale: z.string().min(1).max(320),
   description: z.string().min(1).max(700),
+  // New fields are optional so links shared before they existed still open.
+  highlights: z.array(z.string().min(1).max(80)).max(4).optional().catch(undefined),
+  imageTheme: z.enum(THEMES).optional().catch(undefined),
+  imageIndex: z.coerce.number().int().min(0).max(999).optional().catch(undefined),
 });
 export type Product = z.infer<typeof ProductSchema>;
 
@@ -38,6 +43,8 @@ export const StorefrontSchema = z.object({
   // Filled in only when the input was thin/ambiguous, so the creator knows
   // what we assumed and can correct it. Empty string otherwise.
   assumptions: z.string().max(320).catch("").default(""),
+  theme: z.enum(THEMES).optional().catch(undefined),
+  coverIndex: z.coerce.number().int().min(0).max(999).optional().catch(undefined),
 });
 export type Storefront = z.infer<typeof StorefrontSchema>;
 

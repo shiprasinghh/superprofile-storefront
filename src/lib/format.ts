@@ -1,4 +1,23 @@
-import type { Product } from "./types";
+import type { Product, Storefront } from "./types";
+import { guessTheme, photoUrl, type Theme } from "./photos";
+
+/** Cover photo theme: the model's choice, else a guess from the niche text. */
+export function storeTheme(s: Storefront): Theme {
+  return s.theme ?? guessTheme(`${s.niche} ${s.tagline} ${s.bio}`);
+}
+
+export function coverPhoto(s: Storefront): string {
+  return photoUrl(storeTheme(s), s.coverIndex ?? 0, 1200, 600);
+}
+
+/**
+ * Product photo. Defaults to the product's position + 1 so that products
+ * sharing the store's theme don't repeat the cover or each other.
+ */
+export function productPhoto(s: Storefront, p: Product, i: number): string {
+  const fallback: Theme = /1:1|call|consult|session|mentor/i.test(p.format) ? "call" : storeTheme(s);
+  return photoUrl(p.imageTheme ?? fallback, p.imageIndex ?? i + 1, 800, 450);
+}
 
 export function formatInr(n: number): string {
   return "₹" + new Intl.NumberFormat("en-IN").format(Math.round(n));

@@ -6,6 +6,7 @@ import {
   type Storefront,
   type Tone,
 } from "./types";
+import { THEMES, THEME_GUIDE } from "./photos";
 
 // Google Gemini has a genuinely free API tier (no card required), which the
 // brief explicitly allows. Model is swappable via env.
@@ -35,8 +36,12 @@ ${PRICING_GUIDE}
 
 Rules:
 - Prices are whole numbers in INR, appropriate for India and this creator's likely audience size.
-- Each product has a clear format and a specific, benefit-led description (2-3 sentences) a creator would be proud to publish.
-- priceRationale is one short line the creator can show their audience ("Priced for first-time buyers; one coaching call usually costs more").
+- Write for a buyer scrolling on a phone: short, specific, benefit first. No filler words.
+- tagline: max 8 words. A promise to the buyer, not a job title ("Get fit at home in 20 minutes", not "Fitness coach").
+- bio: 2 short sentences, max 40 words, first person: who you help and why trust you.
+- Each product: a clear title (max 7 words), a description of 1-2 short sentences (max 28 words) leading with what the buyer gets, and exactly 3 "highlights": concrete what-you-get points, max 6 words each ("30 ten-minute workouts", "Lifetime access", "WhatsApp support").
+- priceRationale is one short line for the creator only, explaining the price ("Priced for first-time buyers; one coaching call usually costs more").
+- theme / imageTheme pick the photo shown. Choose from: ${THEMES.map((t) => `${t} (${THEME_GUIDE[t]})`).join("; ")}. "theme" suits the creator's niche; each product's "imageTheme" suits that product's picture (for a 1:1 call use "call", for an ebook or guide use "books" or the niche). Always use the English theme key, whatever the writing language.
 - If the input is thin, vague, gibberish, or a single word, DO NOT refuse. Make reasonable, clearly-stated assumptions, still produce a full valid storefront, and summarise what you assumed in "assumptions". Otherwise set "assumptions" to "".
 - accent is one of: violet, emerald, rose, amber, sky. Pick one that suits the niche.
 - Reply with ONLY a single JSON object. No markdown, no commentary, no code fences.`;
@@ -53,17 +58,20 @@ const FULL_SHAPE = `Return JSON of exactly this shape:
 {
   "creatorName": string,       // a natural display name; infer from the handle/description, else a sensible niche-based name
   "niche": string,             // short niche label, e.g. "Home workouts for busy moms"
-  "tagline": string,           // one punchy line under the name
-  "bio": string,               // 2-3 warm sentences in first person
+  "tagline": string,           // max 8 words, a promise to the buyer
+  "bio": string,               // 2 short sentences, max 40 words, first person
   "accent": "violet"|"emerald"|"rose"|"amber"|"sky",
+  "theme": string,             // one theme key for the cover photo
   "assumptions": string,       // "" unless input was thin; then what you assumed
   "products": [                // 2 to 4 items
     {
-      "title": string,
+      "title": string,         // max 7 words
       "format": string,        // e.g. Ebook, Mini-course, 1:1 call, Community, Template pack
       "priceInr": number,      // whole number, INR
       "priceRationale": string,
-      "description": string
+      "description": string,   // 1-2 short sentences, max 28 words
+      "highlights": [string, string, string], // max 6 words each
+      "imageTheme": string     // one theme key for this product's photo
     }
   ]
 }`;
@@ -140,7 +148,7 @@ export async function generateStorefront(input: GenerateInput): Promise<Storefro
         attempt === 0
           ? base
           : `${base}\n\nIMPORTANT: your previous reply could not be parsed. Reply with ONLY the raw JSON object, nothing else.`;
-      const text = await callModel(user, 2000);
+      const text = await callModel(user, 2600);
       const parsed = StorefrontSchema.safeParse(extractJson(text));
       if (parsed.success) return parsed.data;
       lastErr = new Error("Schema validation failed");
@@ -156,7 +164,7 @@ export async function regenerateBio(current: Storefront, tone?: Tone): Promise<s
   const user = `Here is the creator's current storefront JSON:
 ${JSON.stringify({ creatorName: current.creatorName, niche: current.niche, tagline: current.tagline, products: current.products.map((p) => p.title) })}
 
-Write a fresh, different bio (2-3 warm first-person sentences). ${toneLine(tone)}
+Write a fresh, different bio: 2 short first-person sentences, max 40 words, saying who you help and why to trust you. ${toneLine(tone)}
 Reply with ONLY this JSON: { "bio": string }`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -181,12 +189,13 @@ export async function regenerateProduct(
   const user = `Creator niche: ${current.niche}. Bio: ${current.bio}
 Their other products: ${others.length ? others.join(", ") : "(none)"}.
 
-Propose ONE different product idea that complements the others (avoid duplicates). Use India-appropriate INR pricing. ${toneLine(tone)}
+Propose ONE different product idea that complements the others (avoid duplicates). Use India-appropriate INR pricing. Title max 7 words; description 1-2 short sentences (max 28 words) leading with what the buyer gets; exactly 3 highlights of max 6 words each. ${toneLine(tone)}
+imageTheme is one of: ${THEMES.join(", ")} (English key; "call" for a 1:1 call).
 Reply with ONLY this JSON:
-{ "title": string, "format": string, "priceInr": number, "priceRationale": string, "description": string }`;
+{ "title": string, "format": string, "priceInr": number, "priceRationale": string, "description": string, "highlights": [string, string, string], "imageTheme": string }`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const text = await callModel(user, 500);
+      const text = await callModel(user, 800);
       const parsed = ProductSchema.safeParse(extractJson(text));
       if (parsed.success) return parsed.data;
     } catch {

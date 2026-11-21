@@ -16,7 +16,15 @@ function fromPathSafe(s: string): string {
 }
 
 export function encodeStorefront(s: Storefront): string {
-  return toPathSafe(LZString.compressToEncodedURIComponent(JSON.stringify(s)));
+  // Drop empty highlight rows left over from editing, so the link validates.
+  const clean: Storefront = {
+    ...s,
+    products: s.products.map((p) => ({
+      ...p,
+      highlights: p.highlights?.map((h) => h.trim()).filter(Boolean),
+    })),
+  };
+  return toPathSafe(LZString.compressToEncodedURIComponent(JSON.stringify(clean)));
 }
 
 export function decodeStorefront(data: string): Storefront | null {
