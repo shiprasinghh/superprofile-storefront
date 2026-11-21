@@ -21,12 +21,12 @@ export default function ShareBar({ name }: { name: string }) {
   }
 
   return (
-    <div className="mx-auto mt-5 w-full max-w-md">
+    <div className="mt-4 flex items-center justify-center gap-2 pb-6">
       <button
         onClick={share}
-        className="w-full rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white"
+        className="rounded-full border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
       >
-        {copied ? "Link copied ✓" : "Share this page"}
+        {copied ? "Link copied ✓" : "↗ Share this store"}
       </button>
     </div>
   );

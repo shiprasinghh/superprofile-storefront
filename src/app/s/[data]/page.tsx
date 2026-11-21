@@ -44,13 +44,12 @@ export default async function PublicStore({ params }: { params: Promise<Params> 
   }
 
   return (
-    <main className="mx-auto max-w-md px-4 py-8">
-      <StorefrontView storefront={storefront} />
-      <ShareBar name={storefront.creatorName} />
-      <div className="mt-6 text-center">
-        <Link href="/" className="text-xs font-medium text-gray-400">
-          ✨ Create your own store on SuperProfile
-        </Link>
+    <main className="min-h-screen bg-gray-100 py-0 sm:py-8">
+      <div className="mx-auto max-w-md overflow-hidden bg-white shadow-xl ring-1 ring-black/5 sm:rounded-3xl">
+        <StorefrontView storefront={storefront} />
+      </div>
+      <div className="mx-auto max-w-md px-4">
+        <ShareBar name={storefront.creatorName} />
       </div>
     </main>
   );
