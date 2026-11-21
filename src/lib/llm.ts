@@ -9,7 +9,7 @@ import {
 
 // Google Gemini has a genuinely free API tier (no card required), which the
 // brief explicitly allows. Model is swappable via env.
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 
 function endpoint(): string {
   const key = process.env.GEMINI_API_KEY;
