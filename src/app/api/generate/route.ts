@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       const handle = (body.handle ?? "").trim();
       if (!description && !handle) {
         return json(
-          { ok: false, error: "Tell us a little about yourself, or add your @handle." },
+          { ok: false, error: "Tell us a little about what you do." },
           400,
         );
       }

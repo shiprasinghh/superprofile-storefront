@@ -125,7 +125,7 @@ export default function CoachPanel({
     : `Share one quick tip from your niche in 15 seconds, then point to the link in your bio.`;
 
   return (
-    <div className="space-y-3 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+    <div className="mx-auto w-full max-w-md space-y-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-black/5">
       {/* Progress */}
       <div className="flex items-center gap-3">
         <svg width="56" height="56" viewBox="0 0 64 64" aria-hidden>
@@ -223,37 +223,36 @@ export default function CoachPanel({
 
       <hr className="border-gray-100" />
 
-      {/* Price ladder */}
+      {/* Price ladder: equal columns so photos stay the same size on any screen */}
       <div>
-        <p className="mb-2 text-xs font-medium text-gray-500">Price ladder</p>
-        <div className="flex items-start justify-between gap-1">
-          {ladder.map((x, n) => (
-            <div key={x.i} className="flex items-start gap-1">
-              {n > 0 && <span className="mt-3 text-gray-300">›</span>}
-              <div className="w-12 text-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={productPhoto(s, x.prod, x.i)}
-                  alt=""
-                  className="h-12 w-12 rounded-xl object-cover ring-1 ring-black/5"
-                />
-                <p className="mt-1 text-xs font-bold text-gray-900">{formatInr(x.price)}</p>
-              </div>
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Price ladder</p>
+        <div
+          className="grid gap-3"
+          style={{ gridTemplateColumns: `repeat(${ladder.length + (hasPremium ? 0 : 1)}, minmax(0, 1fr))` }}
+        >
+          {ladder.map((x) => (
+            <div key={x.i} className="min-w-0 text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={productPhoto(s, x.prod, x.i)}
+                alt=""
+                className="aspect-square w-full rounded-xl object-cover ring-1 ring-black/5"
+              />
+              <p className="mt-1.5 text-sm font-bold text-gray-900">{formatInr(x.price)}</p>
+              <p className="truncate text-[11px] text-gray-400">{x.prod.format}</p>
             </div>
           ))}
           {!hasPremium && (
-            <div className="flex items-start gap-1">
-              <span className="mt-3 text-gray-300">›</span>
-              <button onClick={() => onFix("edit-products")} className="w-12 text-center" title="Add a premium product">
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-gray-300 text-lg text-gray-400">
-                  +
-                </span>
-                <span className="mt-1 block text-[11px] text-gray-400">₹2,999+</span>
-              </button>
-            </div>
+            <button onClick={() => onFix("edit-products")} className="min-w-0 text-center" title="Add a premium product">
+              <span className="flex aspect-square w-full items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-2xl text-gray-300 transition hover:border-gray-300 hover:text-gray-400">
+                +
+              </span>
+              <span className="mt-1.5 block text-sm font-semibold text-gray-400">₹2,999+</span>
+              <span className="block text-[11px] text-gray-400">Premium</span>
+            </button>
           )}
         </div>
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-3 text-xs text-gray-500">
           {hasPremium
             ? "Nice spread, from a small first buy to premium."
             : "Good start. A premium option could earn more."}
@@ -264,31 +263,31 @@ export default function CoachPanel({
 
       {/* After you publish: one tap each */}
       <div>
-        <p className="mb-2 text-xs font-medium text-gray-500">After you publish</p>
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">After you publish</p>
         <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => copy("bio", shareUrl())}
-            className="rounded-2xl border border-gray-200 py-2.5 text-center text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="flex h-20 flex-col items-center justify-center gap-1 rounded-2xl border border-gray-200 text-center text-xs font-medium text-gray-700 transition hover:bg-gray-50"
           >
-            <span className="block text-lg" aria-hidden>
+            <span className="block text-2xl leading-none" aria-hidden>
               📸
             </span>
             {copied === "bio" ? "Link copied" : "Bio link"}
           </button>
           <button
             onClick={() => copy("status", statusText())}
-            className="rounded-2xl border border-gray-200 py-2.5 text-center text-xs font-medium text-gray-700 hover:bg-gray-50"
+            className="flex h-20 flex-col items-center justify-center gap-1 rounded-2xl border border-gray-200 text-center text-xs font-medium text-gray-700 transition hover:bg-gray-50"
           >
-            <span className="block text-lg" aria-hidden>
+            <span className="block text-2xl leading-none" aria-hidden>
               💬
             </span>
             {copied === "status" ? "Message copied" : "WhatsApp status"}
           </button>
           <button
             onClick={() => setShowReel((v) => !v)}
-            className={`rounded-2xl border py-2.5 text-center text-xs font-medium hover:bg-gray-50 ${showReel ? "border-gray-900 text-gray-900" : "border-gray-200 text-gray-700"}`}
+            className={`flex h-20 flex-col items-center justify-center gap-1 rounded-2xl border text-center text-xs font-medium transition hover:bg-gray-50 ${showReel ? "border-gray-900 text-gray-900" : "border-gray-200 text-gray-700"}`}
           >
-            <span className="block text-lg" aria-hidden>
+            <span className="block text-2xl leading-none" aria-hidden>
               🎬
             </span>
             Reel idea

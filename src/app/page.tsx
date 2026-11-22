@@ -27,7 +27,6 @@ const LOADING_STEPS = [
 export default function Home() {
   const [phase, setPhase] = useState<Phase>("input");
   const [description, setDescription] = useState("");
-  const [handle, setHandle] = useState("");
   const [tone, setTone] = useState<Tone>("English");
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +44,7 @@ export default function Home() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "full", description, handle, tone }),
+        body: JSON.stringify({ mode: "full", description, tone }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Something went wrong.");
@@ -66,7 +65,7 @@ export default function Home() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "full", description, handle, tone }),
+        body: JSON.stringify({ mode: "full", description, tone }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error);
@@ -222,16 +221,6 @@ export default function Home() {
               ))}
             </div>
 
-            <label className="mb-1.5 mt-5 block text-sm font-semibold text-gray-800">
-              Instagram handle <span className="font-normal text-gray-400">(optional)</span>
-            </label>
-            <input
-              className="w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
-              placeholder="@yourhandle"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-            />
-
             <label className="mb-1.5 mt-5 block text-sm font-semibold text-gray-800">Language</label>
             <div className="flex gap-2">
               {TONES.map((t) => (
@@ -255,7 +244,7 @@ export default function Home() {
 
             <button
               onClick={generate}
-              disabled={!description.trim() && !handle.trim()}
+              disabled={!description.trim()}
               className="mt-5 w-full rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 py-3.5 text-base font-semibold text-white shadow-lg shadow-violet-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Generate my store ✨
@@ -263,7 +252,7 @@ export default function Home() {
           </div>
 
           <p className="mt-4 text-center text-[11px] text-gray-400">
-            🔒 We don&apos;t read Instagram — your description is what we use.
+            Free · No login · Takes about a minute
           </p>
         </div>
       </main>

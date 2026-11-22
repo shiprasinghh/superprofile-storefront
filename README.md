@@ -1,7 +1,7 @@
 # SuperStore — AI Storefront Generator
 
-Turn a creator's Instagram handle **or** a one-line self-description into a
-ready-to-publish storefront: an AI-written bio, 2–4 product ideas with
+Turn a creator's one-line self-description (typed, or spoken in English, Hindi
+or Hinglish) into a ready-to-publish storefront: an AI-written bio, 2–4 product ideas with
 India-appropriate INR pricing and a "why this price" line, product descriptions,
 and a clean, phone-first public page you can share with a link.
 
@@ -13,7 +13,7 @@ Built for the SuperProfile PM (AI-native, 0→1) take-home.
 
 ## What it does
 
-- **Input:** a short self-description (typed, or spoken in English, Hindi or Hinglish via the mic) and/or an `@handle`, plus a language
+- **Input:** a short self-description (typed, or spoken in English, Hindi or Hinglish via the mic), plus a language
   choice (English / Hinglish / Hindi). A self-description alone is a valid input —
   we do **not** scrape Instagram (see Decisions below).
 - **Generate:** one real LLM call returns structured JSON — `creatorName`,
@@ -85,15 +85,14 @@ npm run dev
 | Empty / whitespace            | Blocked client + server side with a gentle prompt               |
 | One word (e.g. "yoga")        | Generates a full store; notes what it assumed                   |
 | Gibberish                     | Generates a plausible store + an `assumptions` banner           |
-| Nonexistent / private handle  | N/A — we don't read Instagram; the handle is only a naming hint |
 | Slow / failed model           | 28s timeout → retry → friendly error with a retry button        |
 | Broken share link             | "This link looks broken" page with a CTA to create a new store  |
 
 ## Key decisions (short version)
 
 - **No Instagram scraping.** It's blocked, fragile and against platform terms
-  (the brief allows skipping it). A self-description is the source of truth; the
-  handle is a hint.
+  (the brief allows skipping it). A self-description is the only input, so the
+  MVP drops the handle field entirely rather than ask for data it can't use.
 - **No database for sharing.** The storefront is packed into the URL, so links
   are instantly public, never expire, and cost nothing to keep live past the
   required two weeks. Trade-off: long URLs and no server-side analytics.
