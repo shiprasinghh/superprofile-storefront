@@ -34,14 +34,15 @@ export default function PublishSheet({
 
   // Short, warm message with the link on its own line at the end, so WhatsApp
   // reads cleanly and shows the store's preview card above the link.
+  // No emojis here: WhatsApp's share links garble them on WhatsApp Web ("�").
   const message = [
-    `✨ ${name} is live!`,
+    `${name} is live!`,
     tagline?.trim() || "Everything I offer, in one link.",
     "",
-    "Have a look 👇",
+    "Have a look:",
     url,
   ].join("\n");
-  const wa = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
 
   return (
     <div
