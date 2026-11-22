@@ -427,6 +427,7 @@ export default function Home() {
         <PublishSheet
           url={publishUrl}
           name={storefront.creatorName}
+          tagline={storefront.tagline}
           onClose={() => setPublishUrl(null)}
         />
       )}

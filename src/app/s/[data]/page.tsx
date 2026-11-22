@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import StorefrontView from "@/components/StorefrontView";
 import ShareBar from "@/components/ShareBar";
 import { decodeStorefront } from "@/lib/share";
+import { coverPhoto } from "@/lib/format";
 
 type Params = { data: string };
 
@@ -14,10 +15,26 @@ export async function generateMetadata({
   const { data } = await params;
   const s = decodeStorefront(data);
   if (!s) return { title: "Store not found" };
+  // A rich preview card: the cover photo, the creator's name and tagline show
+  // up when the link is shared on WhatsApp, Instagram or anywhere else — so the
+  // card is what people tap, not the long URL.
+  const cover = coverPhoto(s);
+  const title = `${s.creatorName} — ${s.tagline}`;
   return {
-    title: `${s.creatorName} · ${s.niche}`,
+    title,
     description: s.tagline,
-    openGraph: { title: s.creatorName, description: s.tagline },
+    openGraph: {
+      title: s.creatorName,
+      description: s.tagline,
+      type: "website",
+      images: [{ url: cover, width: 1200, height: 600, alt: s.creatorName }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: s.creatorName,
+      description: s.tagline,
+      images: [cover],
+    },
   };
 }
 

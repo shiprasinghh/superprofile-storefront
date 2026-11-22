@@ -125,8 +125,12 @@ export default function CoachPanel({
   }
 
   const entryLine = entry ? `“${entry.prod.title}” at ${formatInr(entry.price)}` : "";
-  const statusText = () =>
-    `✨ My store is live! ${s.tagline}\n${entry ? `Start with ${entryLine}.\n` : ""}${shareUrl()}`;
+  const statusText = () => {
+    const lines = [`✨ ${s.creatorName} is live!`, s.tagline];
+    if (entry) lines.push(`Start with ${entryLine}.`);
+    lines.push("", "Have a look 👇", shareUrl());
+    return lines.join("\n");
+  };
   const reelIdea = entry
     ? `Share one quick tip from “${entry.prod.title}” in 15 seconds. End with: “Want the full thing? It's ${formatInr(entry.price)}, link in my bio.”`
     : `Share one quick tip from your niche in 15 seconds, then point to the link in your bio.`;
