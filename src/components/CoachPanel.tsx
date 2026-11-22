@@ -28,11 +28,17 @@ export default function CoachPanel({
   onFix,
   onPublish,
   shareUrl,
+  onAddPremium,
+  addingPremium,
+  error,
 }: {
   storefront: Storefront;
   onFix: (target: FixTarget) => void;
   onPublish: () => void;
   shareUrl: () => string;
+  onAddPremium: () => void;
+  addingPremium: boolean;
+  error?: string | null;
 }) {
   const [showAll, setShowAll] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -105,6 +111,7 @@ export default function CoachPanel({
     .map((prod, i) => ({ prod, i, price: livePrice(prod).price }))
     .sort((a, b) => a.price - b.price);
   const hasPremium = ladder.some((x) => x.price >= 2999);
+  const canAdd = !hasPremium && p.length < 4;
   const entry = ladder[0];
 
   async function copy(key: string, text: string) {
@@ -228,7 +235,7 @@ export default function CoachPanel({
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Price ladder</p>
         <div
           className="grid gap-3"
-          style={{ gridTemplateColumns: `repeat(${ladder.length + (hasPremium ? 0 : 1)}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${ladder.length + (canAdd ? 1 : 0)}, minmax(0, 1fr))` }}
         >
           {ladder.map((x) => (
             <div key={x.i} className="min-w-0 text-center">
@@ -242,21 +249,37 @@ export default function CoachPanel({
               <p className="truncate text-[11px] text-gray-400">{x.prod.format}</p>
             </div>
           ))}
-          {!hasPremium && (
-            <button onClick={() => onFix("edit-products")} className="min-w-0 text-center" title="Add a premium product">
-              <span className="flex aspect-square w-full items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-2xl text-gray-300 transition hover:border-gray-300 hover:text-gray-400">
-                +
+          {canAdd && (
+            <button
+              onClick={onAddPremium}
+              disabled={addingPremium}
+              className="group min-w-0 text-center disabled:cursor-wait"
+              title="Add a premium product with AI"
+            >
+              <span className="flex aspect-square w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/40 text-violet-500 transition group-hover:border-violet-300 group-hover:bg-violet-50">
+                {addingPremium ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+                ) : (
+                  <span className="text-2xl leading-none">+</span>
+                )}
               </span>
-              <span className="mt-1.5 block text-sm font-semibold text-gray-400">₹2,999+</span>
-              <span className="block text-[11px] text-gray-400">Premium</span>
+              <span className="mt-1.5 block text-sm font-semibold text-violet-600">
+                {addingPremium ? "Creating…" : "₹2,999+"}
+              </span>
+              <span className="block text-[11px] text-gray-400">{addingPremium ? "Premium" : "Add premium"}</span>
             </button>
           )}
         </div>
         <p className="mt-3 text-xs text-gray-500">
           {hasPremium
             ? "Nice spread, from a small first buy to premium."
-            : "Good start. A premium option could earn more."}
+            : canAdd
+              ? "Tap ＋ and AI adds a premium product that fits your niche."
+              : "Swap one product (↻) for a premium option to earn more."}
         </p>
+        {error && !addingPremium && /premium/i.test(error) && (
+          <p className="mt-1 text-xs text-rose-600">{error}</p>
+        )}
       </div>
 
       <hr className="border-gray-100" />

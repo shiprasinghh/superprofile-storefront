@@ -34,6 +34,7 @@ export default function Home() {
   const [busyBio, setBusyBio] = useState(false);
   const [busyProduct, setBusyProduct] = useState<number | null>(null);
   const [regenAll, setRegenAll] = useState(false);
+  const [addingPremium, setAddingPremium] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("store");
   const [publishUrl, setPublishUrl] = useState<string | null>(null);
 
@@ -121,6 +122,27 @@ export default function Home() {
       setError(e instanceof Error ? e.message : "Could not regenerate product.");
     } finally {
       setBusyProduct(null);
+    }
+  }
+
+  /** From the price ladder's ＋ tile: AI adds one premium product (₹2,999+). */
+  async function addPremium() {
+    if (!storefront || storefront.products.length >= 4) return;
+    setAddingPremium(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "premium", current: storefront, tone }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error);
+      setStorefront((s) => (s ? { ...s, products: [...s.products, data.product as Product] } : s));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not add a premium product.");
+    } finally {
+      setAddingPremium(false);
     }
   }
 
@@ -370,7 +392,15 @@ export default function Home() {
         {/* Coach panel */}
         <aside className={`${mobileTab === "coach" ? "block" : "hidden"} lg:sticky lg:top-24 lg:block`}>
           {storefront && (
-            <CoachPanel storefront={storefront} onFix={jumpTo} onPublish={publish} shareUrl={shareUrl} />
+            <CoachPanel
+              storefront={storefront}
+              onFix={jumpTo}
+              onPublish={publish}
+              shareUrl={shareUrl}
+              onAddPremium={addPremium}
+              addingPremium={addingPremium}
+              error={error}
+            />
           )}
         </aside>
       </div>

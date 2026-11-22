@@ -8,7 +8,7 @@ import {
   type Tone,
 } from "./types";
 import { THEMES, THEME_GUIDE } from "./photos";
-import { addDays, suggestRegular, todayIST } from "./format";
+import { addDays, snapPrice, suggestRegular, todayIST } from "./format";
 
 // Google Gemini has a genuinely free API tier (no card required), which the
 // brief explicitly allows. Model is swappable via env.
@@ -188,6 +188,15 @@ function keepStatedProof(proof: Proof[] | undefined, input: GenerateInput): Proo
   return (proof ?? []).filter((p) => numbersIn(p.text).every((n) => stated.has(n))).slice(0, 4);
 }
 
+/** Snap AI prices to familiar points (₹300 → ₹299). Creator-typed prices never pass through here. */
+function snapProductPrices(p: Product): Product {
+  return {
+    ...p,
+    priceInr: snapPrice(p.priceInr),
+    regularPriceInr: p.regularPriceInr ? snapPrice(p.regularPriceInr) : undefined,
+  };
+}
+
 /**
  * Quality control on launch offers: at most one, on the cheapest product,
  * with a real discount no deeper than 50%, ending in 14 days. Anything else
@@ -224,7 +233,7 @@ export async function generateStorefront(input: GenerateInput): Promise<Storefro
         // The AI never writes testimonials; only the creator can add one.
         return {
           ...parsed.data,
-          products: keepHonestOffer(parsed.data.products),
+          products: keepHonestOffer(parsed.data.products.map(snapProductPrices)),
           proof: keepStatedProof(parsed.data.proof, input),
           testimonial: undefined,
         };
@@ -281,12 +290,75 @@ Reply with ONLY this JSON:
       const text = await callModel(user, 800);
       const parsed = ProductSchema.safeParse(extractJson(text));
       // A swapped-in product starts without a launch offer; the creator can add one.
-      if (parsed.success) return { ...parsed.data, regularPriceInr: undefined, offerEndsAt: undefined };
+      if (parsed.success)
+        return { ...snapProductPrices(parsed.data), regularPriceInr: undefined, offerEndsAt: undefined };
     } catch {
       /* retry */
     }
   }
   throw new Error("Could not regenerate product");
+}
+
+/** Parse a JSON object or array from model text. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractAny(text: string): any {
+  const t = text.trim().replace(/^```(?:json)?\s*|```$/gi, "").trim();
+  try {
+    return JSON.parse(t);
+  } catch {
+    return extractJson(t);
+  }
+}
+
+/**
+ * The model sometimes wraps the answer ({ product }) or returns the whole list
+ * with the new item added. Pick the one new product in any of those shapes.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pickNewProduct(obj: any, existing: Set<string>): unknown {
+  const list = Array.isArray(obj) ? obj : Array.isArray(obj?.products) ? obj.products : null;
+  if (list) {
+    const fresh = list.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (p: any) => typeof p?.title === "string" && !existing.has(p.title.trim().toLowerCase()),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return fresh.sort((a: any, b: any) => Number(b.priceInr) - Number(a.priceInr))[0];
+  }
+  return obj?.product ?? obj;
+}
+
+/** Add one premium product (₹2,999+) that fits the niche and the existing range. */
+export async function addPremiumProduct(current: Storefront, tone?: Tone): Promise<Product> {
+  const others = current.products.map((p) => `${p.title} (${p.format}, ₹${p.priceInr})`);
+  const hasSession = current.products.some((p) => p.kind === "session");
+  const user = `Creator niche: ${current.niche}. Bio: ${current.bio}
+Their current products: ${others.join(", ")}.
+
+${PRICING_GUIDE}
+
+Propose ONE premium product priced 2,999 to 9,999 INR for their most committed buyers: the top step of their price ladder. Good premium formats: live cohort or bootcamp, multi-week group programme, 3-month mentorship${hasSession ? "" : ", 1:1 coaching package"}. It must fit this niche, be clearly more in-depth than the products above, and not duplicate them.${hasSession ? ' Do not use kind "session"; they already offer a 1:1.' : ""} Use a niche-specific format label (max 3 words, e.g. "Live art cohort", "UPSC mentorship"). Title max 7 words; description 1-2 short sentences (max 28 words) leading with what the buyer gets; exactly 3 highlights of max 6 words each. ${toneLine(tone)}
+kind is one of: course, live, membership, session.
+imageTheme is one of: ${THEMES.join(", ")} (English key).
+Reply with ONLY the ONE new product as a single JSON object (not a list, and do not repeat the existing products):
+{ "title": string, "kind": string, "format": string, "priceInr": number, "priceRationale": string, "description": string, "highlights": [string, string, string], "imageTheme": string }`;
+  const existing = new Set(current.products.map((p) => p.title.trim().toLowerCase()));
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await callModel(user, 1400);
+      const parsed = ProductSchema.safeParse(pickNewProduct(extractAny(text), existing));
+      if (!parsed.success) console.error("[premium] invalid reply", parsed.error.issues.slice(0, 3), text.slice(0, 300));
+      if (parsed.success) {
+        const p = snapProductPrices(parsed.data);
+        // Guarantee it really is the premium step.
+        const priceInr = Math.min(Math.max(p.priceInr, 2999), 9999);
+        return { ...p, priceInr: snapPrice(priceInr), regularPriceInr: undefined, offerEndsAt: undefined };
+      }
+    } catch (e) {
+      console.error("[premium] attempt failed", e instanceof Error ? e.message.slice(0, 200) : e);
+    }
+  }
+  throw new Error("Could not add a premium product");
 }
 
 const TRANSCRIBE_PROMPT = `This is a short voice note from an Indian creator describing what they do, who they help or what they teach. They may speak English, Hindi, or a Hindi-English mix (Hinglish).

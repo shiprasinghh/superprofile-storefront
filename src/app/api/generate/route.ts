@@ -3,6 +3,7 @@ import {
   generateStorefront,
   regenerateBio,
   regenerateProduct,
+  addPremiumProduct,
 } from "@/lib/llm";
 import { StorefrontSchema, type Tone } from "@/lib/types";
 
@@ -15,7 +16,7 @@ function json(data: any, status = 200) {
 }
 
 type Body = {
-  mode?: "full" | "bio" | "product";
+  mode?: "full" | "bio" | "product" | "premium";
   description?: string;
   handle?: string;
   tone?: Tone;
@@ -57,6 +58,14 @@ export async function POST(req: Request) {
     if (mode === "bio") {
       const bio = await regenerateBio(parsed.data, tone);
       return json({ ok: true, bio });
+    }
+
+    if (mode === "premium") {
+      if (parsed.data.products.length >= 4) {
+        return json({ ok: false, error: "Your store already has 4 products. Swap one instead." }, 400);
+      }
+      const product = await addPremiumProduct(parsed.data, tone);
+      return json({ ok: true, product });
     }
 
     if (mode === "product") {

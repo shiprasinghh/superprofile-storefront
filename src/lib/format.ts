@@ -121,6 +121,22 @@ export function livePrice(p: Product, today = todayIST()): { price: number; was:
   return { price: p.priceInr, was: null };
 }
 
+const FAMILIAR_PRICES = [
+  49, 99, 149, 199, 249, 299, 349, 399, 449, 499, 599, 699, 799, 899, 999, 1199, 1299, 1499, 1799, 1999,
+  2499, 2999, 3499, 3999, 4499, 4999, 5999, 6999, 7999, 8999, 9999, 12999, 14999, 19999, 24999,
+];
+
+/**
+ * Snap an AI-suggested price to the nearest familiar Indian price point
+ * (₹300 → ₹299, ₹1,503 → ₹1,499). Only used on AI output; prices a creator
+ * types are left exactly as they are.
+ */
+export function snapPrice(n: number): number {
+  if (!Number.isFinite(n) || n <= 0) return n;
+  if (n > 24999) return Math.round(n / 1000) * 1000 - 1;
+  return FAMILIAR_PRICES.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
+}
+
 /** A sensible regular price to start from when a creator switches an offer on. */
 export function suggestRegular(price: number): number {
   // Familiar price points between 1.5x and 2x the offer price, nearest to ~1.67x.
