@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import StorefrontView from "@/components/StorefrontView";
-import CoachPanel from "@/components/CoachPanel";
+import CoachPanel, { type FixTarget } from "@/components/CoachPanel";
 import PublishSheet from "@/components/PublishSheet";
 import VoiceInput from "@/components/VoiceInput";
 import { encodeStorefront } from "@/lib/share";
@@ -147,6 +147,23 @@ export default function Home() {
   }
   function publish() {
     if (storefront) setPublishUrl(shareUrl());
+  }
+
+  /** From Tips and checks: jump to the part of the store that needs work. */
+  function jumpTo(target: FixTarget) {
+    setMobileTab("store");
+    setTimeout(() => {
+      const el = document.getElementById(target);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.style.outline = "3px solid #fdba74";
+      el.style.outlineOffset = "4px";
+      el.style.borderRadius = "16px";
+      setTimeout(() => {
+        el.style.outline = "";
+        el.style.outlineOffset = "";
+      }, 1800);
+    }, 80);
   }
 
   // ---------- INPUT ----------
@@ -363,7 +380,9 @@ export default function Home() {
 
         {/* Coach panel */}
         <aside className={`${mobileTab === "coach" ? "block" : "hidden"} lg:sticky lg:top-24 lg:block`}>
-          {storefront && <CoachPanel storefront={storefront} />}
+          {storefront && (
+            <CoachPanel storefront={storefront} onFix={jumpTo} onPublish={publish} shareUrl={shareUrl} />
+          )}
         </aside>
       </div>
 

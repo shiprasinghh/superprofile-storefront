@@ -4,12 +4,17 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Accent, Product, Proof, ProofKind, Storefront } from "@/lib/types";
 import {
+  addDays,
   coverPhoto,
   formatInr,
   formatMeta,
   initials,
+  livePrice,
   productPhoto,
+  splitStat,
   startHereIndex,
+  suggestRegular,
+  todayIST,
 } from "@/lib/format";
 
 // Full class strings (not built dynamically) so Tailwind keeps them.
@@ -120,38 +125,39 @@ const PROOF_META: Record<ProofKind, { icon: string; add: string; placeholder: st
   other: { icon: "✨", add: "Other", placeholder: "Featured in a magazine" },
 };
 
-/** Buyer view: trust badges + one real quote. Hidden entirely if empty. */
-function TrustView({ storefront, soft, text }: { storefront: Storefront; soft: string; text: string }) {
-  const proof = (storefront.proof ?? []).filter((p) => p.text.trim());
-  const t = storefront.testimonial;
-  if (!proof.length && !t?.quote.trim()) return null;
+/** Facts with a number become tiles under the name ("18K / followers"). */
+function StatTiles({ storefront }: { storefront: Storefront }) {
+  const stats = (storefront.proof ?? [])
+    .map((p) => (p.text.trim() ? splitStat(p.text) : null))
+    .filter((x): x is { value: string; label: string } => !!x)
+    .slice(0, 4);
+  if (!stats.length) return null;
   return (
-    <section className="mx-4 mt-5 space-y-3">
-      {proof.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2">
-          {proof.map((p, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm"
-            >
-              <span aria-hidden>{PROOF_META[p.kind].icon}</span>
-              {p.text}
-            </span>
-          ))}
+    <div
+      className="mx-auto mt-4 grid max-w-sm divide-x divide-gray-100 rounded-2xl border border-gray-100 bg-white py-2.5 shadow-sm"
+      style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}
+    >
+      {stats.map((st, i) => (
+        <div key={i} className="px-2 text-center">
+          <div className="text-lg font-bold leading-tight text-gray-900">{st.value}</div>
+          <div className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-gray-500">{st.label}</div>
         </div>
-      )}
-      {t?.quote.trim() && (
-        <figure className={`rounded-2xl p-4 ${soft}`}>
-          <div className={`text-4xl font-serif leading-none ${text}`} aria-hidden>
-            “
-          </div>
-          <blockquote className="-mt-3 text-[15px] italic leading-relaxed text-gray-700">{t.quote}</blockquote>
-          {t.name?.trim() && (
-            <figcaption className="mt-2 text-xs font-semibold text-gray-500">— {t.name}</figcaption>
-          )}
-        </figure>
-      )}
-    </section>
+      ))}
+    </div>
+  );
+}
+
+/** Facts without a number (qualifications) sit under the tagline. No "verified" tick: we haven't verified them. */
+function CredentialLine({ storefront }: { storefront: Storefront }) {
+  const creds = (storefront.proof ?? [])
+    .map((p) => p.text.trim())
+    .filter((t) => t && !splitStat(t));
+  if (!creds.length) return null;
+  return (
+    <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-gray-600">
+      <span aria-hidden>🎓</span>
+      {creds.join(" · ")}
+    </p>
   );
 }
 
@@ -170,7 +176,7 @@ function TrustEditor({
   const setProof = (next: Proof[]) => onChange({ proof: next });
 
   return (
-    <section className="mx-4 mt-5 rounded-2xl border border-dashed border-gray-300 p-3">
+    <section id="edit-trust" className="mx-4 mt-5 scroll-mt-28 rounded-2xl border border-dashed border-gray-300 p-3">
       <div className="flex items-baseline justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
           Why buyers can trust you
@@ -259,6 +265,8 @@ export default function StorefrontView({
   const a = ACCENT[s.accent] ?? ACCENT.violet;
   const editable = !!edit;
   const start = startHereIndex(s.products);
+  const quote = s.testimonial?.quote.trim() ?? "";
+  const quoteName = s.testimonial?.name?.trim() ?? "";
   const [toast, setToast] = useState<string | null>(null);
 
   const field = `rounded-md outline-none transition hover:bg-gray-100/80 focus:bg-white focus:ring-2 ${a.ring}`;
@@ -333,6 +341,8 @@ export default function StorefrontView({
           </p>
         )}
 
+        <CredentialLine storefront={s} />
+
         <div className="mt-3 flex justify-center">
           <span className={`rounded-full px-3 py-1 text-xs font-medium ${a.soft} ${a.text}`}>
             {editable ? (
@@ -348,10 +358,13 @@ export default function StorefrontView({
             )}
           </span>
         </div>
+
+        {/* Trust at a glance: number tiles, like an Instagram profile */}
+        <StatTiles storefront={s} />
       </div>
 
       {/* Bio */}
-      <section className="mx-5 mt-4">
+      <section id="edit-bio" className="mx-5 mt-4 scroll-mt-28">
         {editable && (
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
@@ -378,15 +391,11 @@ export default function StorefrontView({
         )}
       </section>
 
-      {/* Why trust me: honest proof for first-time sellers (no fake reviews) */}
-      {editable ? (
-        <TrustEditor storefront={s} onChange={edit!.onChange} field={field} />
-      ) : (
-        <TrustView storefront={s} soft={a.soft} text={a.text} />
-      )}
+      {/* Creator-only: edit trust facts and the quote (buyers see tiles + quote in a card) */}
+      {editable && <TrustEditor storefront={s} onChange={edit!.onChange} field={field} />}
 
       {/* Products */}
-      <section className="mt-7 px-4">
+      <section id="edit-products" className="mt-7 scroll-mt-28 px-4">
         <div className="mb-4 flex items-baseline justify-between px-1">
           <h2 className="text-base font-bold text-gray-900">Products &amp; services</h2>
           <span className="text-xs text-gray-400">{s.products.length} offerings</span>
@@ -394,9 +403,11 @@ export default function StorefrontView({
 
         <div className="space-y-5">
           {s.products.map((p, i) => {
-            const meta = formatMeta(p.format);
+            const meta = formatMeta(p.format, p.kind);
             const busy = edit?.busyProduct === i;
             const isStart = i === start;
+            const lp = livePrice(p);
+            const showQuote = !!quote && (isStart || (start === -1 && i === 0));
             const highlights = (p.highlights ?? []).filter((h) => h.trim());
             const editHighlights = [...(p.highlights ?? [])];
             while (editHighlights.length < 3) editHighlights.push("");
@@ -422,8 +433,13 @@ export default function StorefrontView({
                   <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-gray-800 shadow-sm">
                     {meta.icon} {p.format}
                   </span>
+                  {lp.was && (
+                    <span className="absolute right-3 top-3 rounded-full bg-orange-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
+                      Launch offer
+                    </span>
+                  )}
                   {isStart && (
-                    <span className="absolute right-3 top-3 rounded-full bg-gray-900/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    <span className="absolute bottom-3 left-3 rounded-full bg-gray-900/85 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
                       ⭐ Best place to start
                     </span>
                   )}
@@ -526,8 +542,18 @@ export default function StorefrontView({
                     </ul>
                   )}
 
+                  {/* A real student's words, right where the buyer decides */}
+                  {showQuote && (
+                    <figure className="mt-3 border-l-2 border-gray-300 pl-3">
+                      <blockquote className="text-sm italic leading-relaxed text-gray-700">“{quote}”</blockquote>
+                      <figcaption className="mt-0.5 text-xs text-gray-500">
+                        — {quoteName || "A past student"}
+                      </figcaption>
+                    </figure>
+                  )}
+
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="flex items-baseline gap-0.5">
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
                       {editable ? (
                         <span className="flex items-baseline text-2xl font-bold text-gray-900">
                           ₹
@@ -535,18 +561,26 @@ export default function StorefrontView({
                             type="number"
                             inputMode="numeric"
                             min={0}
-                            className={`w-24 px-1 ${field}`}
+                            className={`w-20 px-1 ${field}`}
                             value={p.priceInr}
                             onChange={(e) =>
                               edit!.onProductChange(i, { priceInr: Number(e.target.value) || 0 })
                             }
-                            aria-label="Price in rupees"
+                            aria-label={p.regularPriceInr ? "Launch price in rupees" : "Price in rupees"}
                           />
                         </span>
                       ) : (
-                        <span className="text-2xl font-bold text-gray-900">{formatInr(p.priceInr)}</span>
+                        <span className="text-2xl font-bold text-gray-900">{formatInr(lp.price)}</span>
                       )}
-                      {meta.suffix && <span className="text-xs text-gray-400">{meta.suffix}</span>}
+                      {lp.was && (
+                        <>
+                          <span className="text-sm text-gray-400 line-through">{formatInr(lp.was)}</span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                            Save {formatInr(lp.was - lp.price)}
+                          </span>
+                        </>
+                      )}
+                      {meta.suffix && !lp.was && <span className="text-xs text-gray-400">{meta.suffix}</span>}
                     </div>
                     <button
                       type="button"
@@ -558,6 +592,68 @@ export default function StorefrontView({
                       {meta.cta} →
                     </button>
                   </div>
+
+                  {/* Creator-only: launch offer controls. The end date is never shown to buyers. */}
+                  {editable && (
+                    <div className="mt-3 rounded-xl bg-gray-50 p-2.5 text-xs text-gray-600">
+                      <label className="flex cursor-pointer items-center gap-2 font-semibold text-gray-800">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-orange-500"
+                          checked={!!p.regularPriceInr}
+                          onChange={(e) =>
+                            edit!.onProductChange(
+                              i,
+                              e.target.checked
+                                ? { regularPriceInr: suggestRegular(p.priceInr), offerEndsAt: addDays(todayIST(), 14) }
+                                : { regularPriceInr: undefined, offerEndsAt: undefined },
+                            )
+                          }
+                        />
+                        Launch offer
+                        <span className="font-normal text-gray-400">(shows a cut price)</span>
+                      </label>
+                      {!!p.regularPriceInr && (
+                        <>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <span className="flex items-center gap-1">
+                              Regular price ₹
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                className="w-20 rounded-md border border-gray-200 bg-white px-1.5 py-1"
+                                value={p.regularPriceInr}
+                                onChange={(e) =>
+                                  edit!.onProductChange(i, { regularPriceInr: Number(e.target.value) || 1 })
+                                }
+                                aria-label="Regular price in rupees"
+                              />
+                            </span>
+                            <span className="flex items-center gap-1">
+                              Ends
+                              <input
+                                type="date"
+                                min={todayIST()}
+                                className="rounded-md border border-gray-200 bg-white px-1.5 py-1"
+                                value={p.offerEndsAt ?? ""}
+                                onChange={(e) =>
+                                  edit!.onProductChange(i, { offerEndsAt: e.target.value || undefined })
+                                }
+                                aria-label="Offer end date"
+                              />
+                            </span>
+                          </div>
+                          {p.regularPriceInr <= p.priceInr && (
+                            <p className="mt-1.5 text-rose-600">The regular price must be higher than the launch price.</p>
+                          )}
+                          <p className="mt-1.5 text-[10px] text-gray-400">
+                            Buyers don&apos;t see the end date. After it, your regular price shows automatically.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {/* Creator-only coaching: why this price. Hidden from buyers. */}
                   {editable && (

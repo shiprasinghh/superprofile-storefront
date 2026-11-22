@@ -8,6 +8,7 @@ import {
   type Tone,
 } from "./types";
 import { THEMES, THEME_GUIDE } from "./photos";
+import { addDays, suggestRegular, todayIST } from "./format";
 
 // Google Gemini has a genuinely free API tier (no card required), which the
 // brief explicitly allows. Model is swappable via env.
@@ -19,21 +20,29 @@ function endpoint(): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`;
 }
 
-const PRICING_GUIDE = `INDIA PRICING GUIDE (price-sensitive micro-creator audiences, INR):
-- Ebook / guide: 149 to 799
-- Template / notes / resource pack: 199 to 999
-- Mini-course (pre-recorded): 499 to 2,999
-- Cohort / live course: 1,999 to 9,999
-- 1:1 call or consult (per session): 499 to 2,999
-- Paid community (per month): 99 to 499
-- Webinar / workshop (one-off): 199 to 999
+const PRICING_GUIDE = `WHAT SUPERPROFILE CAN SELL: exactly five kinds ("kind"), with typical India prices (INR):
+- digital: ebooks, guides, notes / PYQ packs, templates, planners, Excel or Notion sheets, presets, recipe books, diet or workout plan PDFs, mock test series: 149 to 1,499
+- course: pre-recorded mini-course 499 to 2,999; live cohort or bootcamp 1,999 to 9,999
+- live: one-off webinar or workshop 199 to 999; 7, 14 or 21-day challenge 199 to 999
+- membership: paid community, club or monthly group (price is per month): 99 to 499
+- session: 1:1 call, consultation, reading (kundli, tarot), portfolio or resume review: 499 to 2,999
 Pick round, familiar numbers (199, 299, 499, 999, 1499, 2999). Never price above
-what a 5K-100K follower creator's audience would realistically pay. Prefer at least
+what a 5K-100K follower creator's audience would realistically pay. Include at least
 one low-ticket entry product under 500.`;
+
+const PRODUCT_RULES = `CHOOSING PRODUCTS (the most important decision: creators don't know what to sell):
+- Choose the formats that best fit THIS niche and audience. Do not default to "ebook + mini-course + 1:1 call".
+- Use at least two different kinds. Use at most one "session", and only if personal guidance genuinely suits the niche.
+- Where it suits the niche, include one live or recurring product (workshop, challenge, cohort or community): they build a relationship with the audience.
+- "format" is a short, niche-specific label (max 3 words) a buyer instantly understands, e.g. "PYQ notes pack", "Mock test series", "Kundli reading", "21-day challenge", "Lightroom presets", "Recipe ebook", "Budget template", "Stock-picks club", "Canva crash course", "Wardrobe audit call". Never use these generic labels on their own: "Mini-course", "Template pack", "Ebook", "Guide", "1:1 call", "1:1 consultation", "Webinar". Always say what it is about.
+- Examples of good fits: UPSC -> PYQ notes pack, mock test series, live doubt-solving workshop. Astrologer -> kundli reading, monthly horoscope club. Fitness -> 21-day home workout challenge, diet plan, community. Finance -> budget template, live tax-saving workshop, money club.
+- Launch offer: on the single cheapest product only, suggest a launch price. Set "priceInr" to the launch price and "regularPriceInr" to the creator's normal price (higher, at most double the launch price, e.g. 299 and 499). Omit "regularPriceInr" on every other product.`;
 
 const SYSTEM = `You help Indian creators (fitness, finance, cooking, design, exam prep, astrology, fashion, and similar niches) turn a short self-description into a storefront that sells. You write warm, concrete, trustworthy copy — never generic hype, no empty buzzwords.
 
 ${PRICING_GUIDE}
+
+${PRODUCT_RULES}
 
 Rules:
 - Prices are whole numbers in INR, appropriate for India and this creator's likely audience size.
@@ -70,8 +79,10 @@ const FULL_SHAPE = `Return JSON of exactly this shape:
   "products": [                // 2 to 4 items
     {
       "title": string,         // max 7 words
-      "format": string,        // e.g. Ebook, Mini-course, 1:1 call, Community, Template pack
-      "priceInr": number,      // whole number, INR
+      "kind": "digital"|"course"|"live"|"membership"|"session",
+      "format": string,        // niche-specific, max 3 words, e.g. "PYQ notes pack", "Kundli reading", "21-day challenge"
+      "priceInr": number,      // whole number, INR (the launch price if regularPriceInr is set)
+      "regularPriceInr": number, // OPTIONAL, cheapest product only: normal price for a launch offer
       "priceRationale": string,
       "description": string,   // 1-2 short sentences, max 28 words
       "highlights": [string, string, string], // max 6 words each
@@ -92,8 +103,27 @@ async function callModel(user: string, maxTokens: number): Promise<string> {
   });
 }
 
-/** One Gemini call with a 28s timeout. Returns the raw text of the reply. */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Gemini call that rides out short "overloaded" spells: on a 503 or 429 it
+ * waits briefly and tries again (up to 2 more times) before giving up.
+ */
 async function geminiRequest(payload: object): Promise<string> {
+  const waits = [1200, 2500];
+  for (let i = 0; ; i++) {
+    try {
+      return await geminiOnce(payload);
+    } catch (e) {
+      const busy = e instanceof Error && /Gemini (503|429|500)/.test(e.message);
+      if (!busy || i >= waits.length) throw e;
+      await sleep(waits[i]);
+    }
+  }
+}
+
+/** One Gemini call with a 28s timeout. Returns the raw text of the reply. */
+async function geminiOnce(payload: object): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 28_000);
   try {
@@ -158,6 +188,26 @@ function keepStatedProof(proof: Proof[] | undefined, input: GenerateInput): Proo
   return (proof ?? []).filter((p) => numbersIn(p.text).every((n) => stated.has(n))).slice(0, 4);
 }
 
+/**
+ * Quality control on launch offers: at most one, on the cheapest product,
+ * with a real discount no deeper than 50%, ending in 14 days. Anything else
+ * the model suggests is removed so a buyer never sees an inflated "was" price.
+ */
+function keepHonestOffer(products: Product[]): Product[] {
+  const cheapest = products.reduce((best, p, i) => (p.priceInr < products[best].priceInr ? i : best), 0);
+  const ends = addDays(todayIST(), 14);
+  return products.map((p, i) => {
+    if (i !== cheapest || p.priceInr <= 0) {
+      return { ...p, regularPriceInr: undefined, offerEndsAt: undefined };
+    }
+    const r = p.regularPriceInr;
+    const valid = !!r && r > p.priceInr && r <= p.priceInr * 2;
+    // If the model skipped or botched it, suggest a modest offer the creator can edit or switch off.
+    const regular = valid ? r! : Math.min(suggestRegular(p.priceInr), p.priceInr * 2);
+    return { ...p, regularPriceInr: regular, offerEndsAt: ends };
+  });
+}
+
 /** Generate a full storefront. Retries once, then throws for the caller to handle. */
 export async function generateStorefront(input: GenerateInput): Promise<Storefront> {
   const base = `${describeInput(input)}\n\n${toneLine(input.tone)}\n\n${FULL_SHAPE}`;
@@ -174,6 +224,7 @@ export async function generateStorefront(input: GenerateInput): Promise<Storefro
         // The AI never writes testimonials; only the creator can add one.
         return {
           ...parsed.data,
+          products: keepHonestOffer(parsed.data.products),
           proof: keepStatedProof(parsed.data.proof, input),
           testimonial: undefined,
         };
@@ -212,19 +263,25 @@ export async function regenerateProduct(
   index: number,
   tone?: Tone,
 ): Promise<Product> {
-  const others = current.products.filter((_, i) => i !== index).map((p) => p.title);
+  const others = current.products
+    .filter((_, i) => i !== index)
+    .map((p) => `${p.title} (${p.format})`);
   const user = `Creator niche: ${current.niche}. Bio: ${current.bio}
 Their other products: ${others.length ? others.join(", ") : "(none)"}.
 
-Propose ONE different product idea that complements the others (avoid duplicates). Use India-appropriate INR pricing. Title max 7 words; description 1-2 short sentences (max 28 words) leading with what the buyer gets; exactly 3 highlights of max 6 words each. ${toneLine(tone)}
+${PRICING_GUIDE}
+
+Propose ONE different product idea that fits this niche and complements the others. Prefer a kind and format the other products don't already use; never a second "session". Use a niche-specific format label (max 3 words, e.g. "PYQ notes pack", "Kundli reading", "21-day challenge"). Title max 7 words; description 1-2 short sentences (max 28 words) leading with what the buyer gets; exactly 3 highlights of max 6 words each. ${toneLine(tone)}
+kind is one of: digital, course, live, membership, session.
 imageTheme is one of: ${THEMES.join(", ")} (English key; "call" for a 1:1 call).
 Reply with ONLY this JSON:
-{ "title": string, "format": string, "priceInr": number, "priceRationale": string, "description": string, "highlights": [string, string, string], "imageTheme": string }`;
+{ "title": string, "kind": string, "format": string, "priceInr": number, "priceRationale": string, "description": string, "highlights": [string, string, string], "imageTheme": string }`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const text = await callModel(user, 800);
       const parsed = ProductSchema.safeParse(extractJson(text));
-      if (parsed.success) return parsed.data;
+      // A swapped-in product starts without a launch offer; the creator can add one.
+      if (parsed.success) return { ...parsed.data, regularPriceInr: undefined, offerEndsAt: undefined };
     } catch {
       /* retry */
     }

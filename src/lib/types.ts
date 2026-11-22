@@ -20,6 +20,10 @@ export const PRODUCT_FORMATS = [
 export const TONES = ["English", "Hinglish", "Hindi"] as const;
 export type Tone = (typeof TONES)[number];
 
+// SuperProfile sells exactly these five kinds of things.
+export const PRODUCT_KINDS = ["course", "digital", "membership", "live", "session"] as const;
+export type ProductKind = (typeof PRODUCT_KINDS)[number];
+
 export const ProductSchema = z.object({
   title: z.string().min(1).max(90),
   format: z.string().min(1).max(40),
@@ -30,6 +34,12 @@ export const ProductSchema = z.object({
   highlights: z.array(z.string().min(1).max(80)).max(4).optional().catch(undefined),
   imageTheme: z.enum(THEMES).optional().catch(undefined),
   imageIndex: z.coerce.number().int().min(0).max(999).optional().catch(undefined),
+  // Which of SuperProfile's 5 product types this is (drives icon and button).
+  kind: z.enum(PRODUCT_KINDS).optional().catch(undefined),
+  // Launch offer: priceInr is the offer price, regularPriceInr the real normal
+  // price. After offerEndsAt (YYYY-MM-DD) the store shows the regular price.
+  regularPriceInr: z.coerce.number().int().min(1).max(1_000_000).optional().catch(undefined),
+  offerEndsAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
 });
 export type Product = z.infer<typeof ProductSchema>;
 
